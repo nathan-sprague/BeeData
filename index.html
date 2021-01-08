@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<script>
+
+	var requestInt = setInterval(requestLiveData, 3000);
+	clearInterval(requestInt);
+	var setupFunctions = [getSettings, getFileNames, sendTime, requestData];
+	var functionToRun = 0;
+	function setup(){
+		// requestData();
+
+		setupFunctions[functionToRun]();
+
+		document.getElementById("data").click();
+	}
+
+	var fileNames = [];
+	var settings = [1000,1,"networkname","wifi12345",0]//[0,1,2,3,4,5,6,7,8,9,10,11,12,13]; 
+	var settingChangeWarning = 0;
+
+
+
+	// 	in file: waitTime, is AP(0,1), network name, network password, SI units(0,1)
+
+	// added later: MAC address, deviceID, bytes used, total bytes
+	//waitTime (0), is AP (1), network name (2), network password (3), is SI (4), MAC address (5), deviceID (6), bytes used (7), total bytes (8)
+	function getSettings(){
+		//updateSettings();
+		console.log("getting settings");
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){  
+		 	if(xhttp.status==200 && xhttp.readyState==4){	
+	    		settings = stringListConvert(xhttp.responseText);
+	    		console.log("settings: ", settings);
+	    		console.log(xhttp.responseText);
+	    		updateSettings();
+	    		functionToRun+=1;
+	    		setupFunctions[functionToRun]();
+				
+	    } };
+		var date = new Date();  
+		xhttp.open('GET', '/_info', true);   
+		xhttp.send();
+
+	}
+
+	function getFileNames() {
+		console.log("getting files");
+		var xhttp = new XMLHttpRequest(); 
+		xhttp.onreadystatechange = function(){  
+		 	if(xhttp.status==200 && xhttp.readyState==4){	
+	    	console.log(xhttp.responseText);
+	    	var fileNames = stringListConvert(xhttp.responseText);
+
+	    	console.log(fileNames);
+	    	var x = document.getElementById("fileBrowser");
+	    	var i=0;
+	    	while (i<fileNames.length){
+		    	
+				var option = document.createElement("option");
+				option.text = fileNames[i];
+				x.add(option);
+				i+=1;
+			}
+			functionToRun+=1;
+	    	setupFunctions[functionToRun]();
+			
+	    } };
+
+		var date = new Date();  
+		xhttp.open('GET', '/_fileNames', true);   
+		xhttp.send();
+	}
+
+
+	function sendTime(){  
+		var xhttp = new XMLHttpRequest(); 
+		xhttp.onreadystatechange = function() {
+			if(xhttp.status==200 && xhttp.readyState==4){
+		    	console.log("time updated",  this.responseText);
+		    	functionToRun+=1;
+		    	setupFunctions[functionToRun]();
+
+		} };
+		var date = new Date();  
+		xhttp.open('GET', '/_currentTime?year=' + date.getFullYear() + '&?month=' + (parseInt(date.getMonth())+1) + '&?day=' + (parseInt(date.getDay())+1) + '&?hour=' + date.getHours() + '&?min=' + date.getMinutes() + '&?sec=' + date.getSeconds(), true);   
+		xhttp.send();
+	}
+
+	function requestData(){
+		//getRandomData();
+		//makePlot();
+		//return;
+		var xhttp = new XMLHttpRequest(); 
+		xhttp.onreadystatechange = function(){
+			if(xhttp.status==200 && xhttp.readyState==4){	
+				console.log(xhttp.responseText);
+
+				var sensorInfo = stringListConvert(this.responseText); 
+				setupSensorInfo(sensorInfo);
+		    	sensorsOriginal = Object.assign({}, sensorsNew);
+
+
+		    	var fileNames = Object.keys(sensorsOriginal);
+				console.log("filenames: ", fileNames);
+				if (fileNames.length>0){
+					downloadFile(0, fileNames);
+				} 
+			}
+		}
+		xhttp.open('GET', '/_streamFile?filename=sensors', true);   
+		xhttp.send();
+	}
+
+	function downloadFile(fileNum, fileNames){
+		var fileName = fileNames[fileNum];
+		var xhttp = new XMLHttpRequest();    
+		xhttp.onreadystatechange = function() {
+			if(xhttp.status==200 && xhttp.readyState==4){	
+		     	var words = xhttp.responseText; 
+		     //	console.log("file contents: ", words);
+				words = stringListConvert(words, true);
+				wordsCalib = [...words];
+				var i = 1;
+				var regress = sensorsOriginal[fileNames[fileNum]]["calibration"];
+				var precision = Math.pow(10, sensorsOriginal[fileNames[fileNum]]["precision"]);
+
+				words[0] /= precision;
+				wordsCalib[0] = words[0]*regress[0] + regress[1];
+
+				console.log("regression: ", regress);
+				while (i<words.length){
+					words[i] = words[i-1] + words[i]/precision;
+					wordsCalib[i] = words[i]*regress[0] + regress[1];
+					i+=1;
+				}
+
+				fileData[fileName + " (raw)"] = words;
+				fileData[fileName] = wordsCalib
+				fileNum+=1;
+				if (fileNum==fileNames.length){
+					//makePlot();
+				} else {
+					downloadFile(fileNum, fileNames);
+
+				}
+		 	}
+		};   
+		console.log("requesting to view: " + fileName);
+		xhttp.open('GET', '_streamFile?filename=' + fileName , true);
+		xhttp.send();
+	}
+
+	function stringListConvert(strList, allNumbers, delimiter = ","){
+		var word = "";
+		var newList = [];
+		var fullList = [];
+		for (let i = 0; i < strList.length; i++) {
+  			if (strList[i]==delimiter){
+  				if (allNumbers==true){word =parseFloat(word);} 
+  				newList.push(word);
+  				word = "";
+  			} else if (strList[i] == "$") {
+  				newList.push(word);
+  				word = "";
+  				fullList.push(newList);
+  				newList = [];
+  			} else {
+  				word += strList[i];
+  			}
+		}
+		if (word !== ""){
+			if (allNumbers==true){word = parseFloat(word);} 
+			newList.push(word);
+		}
+		if (fullList.length == 0){
+			return newList;
+		} else {
+			if (newList.length > 0){
+				fullList.push(newList);
+			}
+			return fullList
+		}
+	}
+
+
+	function openTab(elmnt) {
+		console.log(elmnt.id);
+		clearInterval(requestInt);
+		var i, tabcontent, tablinks;
+
+		tabcontent = document.getElementsByClassName("tabcontent");
+		for (i = 0; i < tabcontent.length; i++) {
+		tabcontent[i].style.display = "none";
+		}
+		tablinks = document.getElementsByClassName("tablink");
+		for (i = 0; i < tablinks.length; i++) {
+		tablinks[i].style.backgroundColor = "";
+		}
+		document.getElementById(elmnt.id + "_div").style.display = "block";
+		elmnt.style.backgroundColor = "white" ;
+		document.body.style.backgroundColor = "white";
+		if (elmnt.id == "data" || elmnt.id == "calibration"){
+			requestInt = setInterval(requestLiveData, 3000);
+		} if (elmnt.id == "calibration"){
+			stopCalibration();
+		}
+	}
+	var settingDict = {};
+	function updateSettings(){
+		settingDict = {"waitTime": settings[0], "isAP": settings[1], "networkName": settings[2], "networkPwd": settings[3], "SI": settings[4], "MAC": settings[5], "deviceID": settings[6], "bytesUsed": settings[7], "totalBytes": settings[8]};
+		document.getElementById("macAddress").textContent=settingDict["MAC"];
+	   	document.getElementById("chipID").textContent=settingDict["deviceID"];
+	   	document.getElementById("totalBytes").textContent=settingDict["totalBytes"];
+	    document.getElementById("usedBytes").textContent=settingDict["bytesUsed"];
+	    document.getElementById("percentUsed").textContent=Math.floor(100*settingDict["bytesUsed"]/settingDict["totalBytes"]);
+	    document.getElementById("sampleRate").textContent=settingDict["waitTime"];
+	    document.getElementById("numRecordDays").textContent=Math.floor((settingDict["totalBytes"]-settingDict["bytesUsed"])*settingDict["waitTime"]/(86400*16));
+	    document.getElementById("sampleRate2").value = settingDict["waitTime"];
+	    if (settings["SI"] == "0"){
+	    	document.getElementById("scales").checked=false;
+	    }
+	}
+
+	function sendSettings(){
+		console.log("sending settings");
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){  
+		 	if(xhttp.status==200 && xhttp.readyState==4){	
+	    		alert("successfully updated settings");
+	    		xhttp.open('GET', '/_restart', true);   
+				xhttp.send();
+
+	    		
+	    } };
+		var date = new Date();  
+		settings[0] = document.getElementById("sampleRate2").value;
+		if (document.getElementById("scales").checked){settings[9]="1";} else {settings[9]="0";}
+
+		var message = settings.slice(0, 5);
+		console.log("setting message to send: ",  message.toString());
+
+		xhttp.open('GET', '/_replaceFile?filename=settings&?message=' + message.toString(), true);   
+		xhttp.send();
+	}
+
+
+
+	function requestLiveData(){
+
+		console.log("getting live data");
+		
+
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){  
+			if(xhttp.status==200 && xhttp.readyState==4){
+				var liveVals = stringListConvert(this.responseText);
+
+			 	var liveSpans = ["liveData"];
+			 	var n = 0;
+				while (n<liveSpans.length){
+					var liveList = document.getElementById(liveSpans[n]);
+
+					
+					while (liveList.options.length > 0){
+						liveList.remove(0);
+					}
+					var i = 0;
+					while (i<liveVals.length){
+						sensorName = Object.keys(sensorsOriginal)[i]
+						var a = sensorsOriginal[sensorName]["calibration"][0]*liveVals[i] + sensorsOriginal[sensorName]["calibration"][1];
+						message =  sensorName + ": " + parseFloat(a).toFixed(2) + " (" + liveVals[i] + ")";
+						var option = document.createElement("option");
+						option.text = message;
+						liveList.add(option);
+						i+=1;
+					}
+					n+=1;
+					}
+				document.getElementById("rawVal").textContent = liveVals[Object.keys(sensorsOriginal).indexOf(document.getElementById("calibFor").textContent)];
+				document.getElementById("estVal").textContent = reg[0]*document.getElementById("rawVal").textContent + reg[1];
+			}
+		}
+		xhttp.open('GET', '/_currentReadings', true);
+		xhttp.send();
+	}
+
+
+	var fileData = {};
+
+	function sendCsv() {
+		console.log("Sending csv");
+		keyys = Object.keys(fileData);
+		console.log("names: " + keyys);
+		var csvData = [];
+		i=0;
+		while (i<keyys.length){
+			csvData.push(fileData[keyys[i]]);
+			i+=1;
+		}
+		csvData = csvData[0].map((_, colIndex) => csvData.map(row => row[colIndex]));
+		csvData.splice(0, 0, keyys);
+
+		let csvContent = "data:text/csv;charset=utf-8," + csvData.map(e => e.join(",")).join("\n");
+		var encodedUri = encodeURI(csvContent);
+		var link = document.createElement('a');
+		link.setAttribute('href', encodedUri);    
+		link.setAttribute('download', 'beeScale_' + settingDict['deviceID'] + '.csv');    
+		document.body.appendChild(link);
+		link.click();
+	}
+
+
+
+
+
+	function makePlot(){
+		var element = document.getElementById("downloadButton");
+
+        element.style.left = "100px";
+        element.style.top = "100px";
+
+		if (fileData == {}){return;}
+
+		var elem = (document.compatMode === "CSS1Compat") ? document.documentElement : document.body;
+	    height = elem.clientHeight;
+	    width = elem.clientWidth;
+
+	    var c = document.getElementById("myCanvas");
+	    c.height = height;
+	    c.width = width;
+	    var ctx = c.getContext("2d");
+	    ctx.clearRect(0, 0, width, width);
+	    ctx.font = "20px calibri MS";
+		ctx.textAlign = "center";
+		
+		xVals = fileData[Object.keys(fileData)[0]];
+		yVals = fileData[Object.keys(fileData)[1]].concat(fileData[Object.keys(fileData)[2]]);
+		yVals = yVals.concat(fileData[Object.keys(fileData)[3]]);
+		var minX = getLimits(xVals)[0];
+		var maxX = getLimits(xVals)[1];
+		var xRange = getLimits(xVals)[2];
+
+		var minY = getLimits(yVals)[0];
+		var maxY = getLimits(yVals)[1];
+		var yRange = getLimits(yVals)[2];
+
+		ctx.beginPath();
+		
+
+		let chartHeight = 200;
+		let chartWidth = 300;
+		let chartX=300;
+		let chartY=300;
+		ctx.font = '20px Arial';
+		ctx.fillText("Title", chartX+chartWidth/2, chartY-chartHeight*1.1);
+		ctx.font = '12px Arial';
+
+		ctx.strokeStyle="rgb(0,0,0)";
+		startX = makeAxis(ctx, 1, minX, maxX, chartWidth, chartHeight, chartX, chartY)
+		startY = makeAxis(ctx, 0, minY, maxY, chartWidth, chartHeight, chartX, chartY)
+		ctx.stroke()
+
+		// make plot
+		var i = 0;
+		x=(xVals[i]-startX)/(xRange+(minX-startX))*chartWidth+chartX;
+		y=-(yVals[i]-startY)/(yRange+(minY-startY))*chartHeight+chartY;
+		console.log("plotting");
+		ctx.moveTo(x,y);
+	//	console.log("x,y", xVals, yVals);
+
+		ctx.save()
+		//ctx.setLineDash([]);
+		// ctx.strokeStyle="rgb(255,0,0)";
+		colors = ["red","green", "blue", "brown", "orange", "yellow", "purple"]
+		console.log("min", minY);
+		ctx.beginPath();
+		while (i<yVals.length){
+			ctx.strokeStyle=colors[Math.floor(i/xVals.length)];
+			x=(xVals[i%xVals.length]-startX)/(xRange+(minX-startX))*chartWidth+chartX;
+			y=-(yVals[i]-startY)/(yRange+(minY-startY))*chartHeight+chartY;
+			
+			ctx.lineTo(x,y);
+			i+=1;
+			if (i%xVals.length==0){
+				ctx.stroke();		
+				ctx.restore()
+				ctx.beginPath();
+				//change color
+			}
+		}	
+	}
+
+	function translatePlot(val, min, max, chartMin, chartSize){
+		return (val-min)/(max-min)*chartSize+chartMin;
+	}
+
+
+	function makeAxis(ctx, dir, min, max, chartWidth, chartHeight, chartX, chartY){
+		var order = Math.floor(Math.log((max-min)/10) / Math.LN10+ 0.000000001);
+		console.log("order", order);
+		console.log("min: "+ min%10**order)
+		startTick = Math.floor(min-(min%10**(order+1)))
+		increment = 10**(order+1);
+		numTicks = Math.floor((max-min)/increment)+1;
+
+		console.log("num ticks:", numTicks);
+		console.log("start at: " + startTick + ", increment by: " + 10**(order+1));
+		if (dir==1) {var x = chartX+chartWidth;}
+		else {var x = chartX;}
+		var y = chartY;//+chartHeight/40;
+		ctx.moveTo(x,y);
+		x=chartX;
+		if (dir==0) {y=chartY-chartHeight;}
+		ctx.lineTo(x,y);
+		ctx.stroke();
+		ctx.textAlign = 'right';
+
+
+		var i = 0;
+		while (i<numTicks+1){
+			if (dir==1){x = (i*increment)/(max-min)*chartWidth+chartX;}
+		 	else {y = -((i*increment)/(max-min))*chartHeight+chartY; console.log("y", startTick+i*increment, y);}
+		 	if (x>chartX+chartWidth || y<chartY-chartHeight){
+		 		console.log("over bounds");
+		 		break;
+		 	}
+			ctx.moveTo(x,y);
+			ctx.lineTo(x+chartHeight/40*(dir-1), y+chartHeight/40*dir);
+			ctx.stroke();
+			
+			ctx.save();
+			ctx.translate(x+chartHeight/40*(dir-1),y+chartHeight/40*dir);
+			if (dir==1){ctx.rotate(-Math.PI/4);}
+			ctx.fillText(startTick+i*increment, 0, 0);
+			ctx.restore();
+			i+=1;
+
+		}
+
+		return startTick;
+
+	}
+
+
+	function getLimits(myArray){
+
+		var max = myArray.reduce(function(a, b) {
+		    return Math.max(a, b);
+		});
+
+		var min = myArray.reduce(function(a, b) {
+		    return Math.min(a, b);
+		});
+		return [min, max, max-min];
+	}
+	function clickEvent(){
+	}
+	function goBack() {
+  		window.history.back();
+	}
+
+function beginVideo(){
+	var video = document.querySelector("#videoElement");
+
+	if (navigator.mediaDevices.getUserMedia) {
+	  navigator.mediaDevices.getUserMedia({ video: true })
+	    .then(function (stream) {
+	      video.srcObject = stream;
+	    })
+	    .catch(function (err0r) {
+	      console.log("Something went wrong!");
+	    });
+		}
+	}
+
+
+	function wipeData(all){
+		var amount = "data";
+		var r = false;
+		if (all){
+			amount="all"; 
+			r = confirm("Do you really want to delete all files?");
+		} else {
+			r = confirm("Do you really want to delete data?");
+		}
+		 
+  		if (r == true) {
+			var xhttp = new XMLHttpRequest();    
+			xhttp.onreadystatechange = function() {
+			     if (this.responseText==1) {
+
+			     	alert("deleted");
+			     }
+				};   
+			 var date = new Date();
+			 xhttp.open('GET', '/_wipeData?filename=' + amount, true);
+			xhttp.send();
+		}
+	}
+
+	function deleteFile(){
+		var fileName = document.getElementById("fileBrowser").value;
+			if (fileName.length>0){
+			var r = confirm("do you really want to delete " + fileName)
+			if (r==true){
+					var xhttp = new XMLHttpRequest();    
+					xhttp.onreadystatechange = function() {
+					     if (this.responseText==1) {
+
+					     	alert("deleted");
+					     }
+						};   
+					 xhttp.open('GET', '/_wipeData?fileName=' + fileName, true);
+					xhttp.send();
+			}
+		}
+	}
+	
+	function viewFile(){
+		var fileName = document.getElementById("fileBrowser").value;
+		var xhttp = new XMLHttpRequest();    
+		xhttp.onreadystatechange = function() {
+			if(xhttp.status==200 && xhttp.readyState==4){	
+			 console.log(this.responseText);
+		     document.getElementById("rawinfo").textContent = this.responseText;  
+		 	}
+		};   
+		var date = new Date();  
+		console.log("requesting to view: " + fileName)
+		fileName = fileName.slice(0, fileName.length-4);
+		console.log("Requesting to view ",  fileName);
+		xhttp.open('GET', '_streamfile?filename=' + fileName, true);
+		xhttp.send();
+	}
+
+
+	var sensorsOriginal = {};
+	var sensorsNew = {};
+	function setupSensorInfo(rawSensorInfo){
+		var i = 0;
+		console.log("setting up sensor info");
+		console.log(rawSensorInfo);
+		//file name, sensor type, pin numbers, precision, calibration,
+		while (i<rawSensorInfo.length){
+			var sensor = rawSensorInfo[i];
+			console.log(sensor);
+			var sensorName = sensor[0]
+			sensorsOriginal[sensorName] = {};
+			sensorsOriginal[sensorName]["type"] = sensor[1];
+			sensorsOriginal[sensorName]["pinNums"] = sensor[2];
+			sensorsOriginal[sensorName]["precision"] = sensor[3];
+			sensorsOriginal[sensorName]["calibration"] = stringListConvert(sensor[4], true, ";");
+			i+=1;
+		}
+		sensorsNew = sensorsOriginal;
+		refreshSensorList();
+	}
+
+	function refreshSensorList(){
+		var sensors = document.getElementById("sensors");
+
+	   while (sensors.options.length>0){
+	   		sensors.remove(0);
+	   	}
+
+	   	i = 0;
+	   	while (i<Object.keys(sensorsNew).length){
+	   		var sensor = sensorsNew[Object.keys(sensorsNew)[i]];
+	   		console.log(sensor);
+	   	
+	    	var message = "Name: " + Object.keys(sensorsNew)[i] + " -> " + sensor["type"] + ", pins:";
+	    	var j = sensor["pinNums"];
+	    	while (j>.9){
+	    		message += Math.floor(j%100) + ",";
+	    		j/=100;
+	    	}
+	    	message += " precision: " + sensor["precision"];
+
+	    	var option = document.createElement("option");
+			option.text = message;
+			sensors.add(option);
+	    	i+=1;
+		}
+
+	}
+
+			// sensorsOriginal = {"Time": {"type":"ds3231","pinNums":2122, "precision": 0, "calibration": [1,0]}, "Weight": {"type":"hx711","pinNums":2625, "precision": 0, "calibration": [1,0]}, "Temperature": {"type":"dht22_temp","pinNums":27, "precision": 1, "calibration": [1,0]}, "Humidity": {"type":"dht22_humid","pinNums":27, "precision": 1, "calibration": [1,0]}};
+	function useDefaultSensors(){
+		sensorsNew = {"Time": {"type":"ds3231","pinNums":2122, "precision": 0, "calibration": [1,0]}, "Weight": {"type":"hx711","pinNums":2625, "precision": 0, "calibration": [1,0]}, "Temperature": {"type":"dht22_temp","pinNums":27, "precision": 1, "calibration": [1,0]}, "Humidity": {"type":"dht22_humid","pinNums":27, "precision": 1, "calibration": [1,0]}};
+		refreshSensorList();
+	}
+
+	function sendSensorInfo(){
+		var i=0;
+		var warning = false;
+		console.log("og dict", sensorsOriginal);
+		console.log("og sensors", Object.keys(sensorsOriginal));
+		console.log("new sensors", Object.keys(sensorsNew));
+		if (Object.keys(sensorsOriginal).length > 0){
+			while (i<Object.keys(sensorsNew).length){
+				if (Object.keys(sensorsOriginal).includes(Object.keys(sensorsNew)[i])){
+				} else{
+					console.log("missing ", Object.keys(sensorsNew)[i]);
+					warning = true;
+				}
+				i+=1;
+			}
+		}
+		if (warning){
+			var r = confirm("Changing the sensors used will result in all previous data being deleted. Are you sure you would like to change sensors?");
+  			if (r == false) {
+  				return;
+  			}
+		}
+		i = 0;
+		var message = "";
+		var sensorNames = Object.keys(sensorsNew);
+		while (i<sensorNames.length){
+			s = sensorsNew[sensorNames[i]];
+
+			message += sensorNames[i] + "," + s["type"] + ","  +  s["pinNums"] + "," + s["precision"] + "," + s["calibration"].toString().replace(/,/g, ";") + "$";
+
+			i+=1;
+		}
+		console.log(message);
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){  
+		if(xhttp.status==200 && xhttp.readyState==4){	
+			settings = stringListConvert(xhttp.responseText);
+			console.log("success");
+			sensorsOriginal = Object.assign({}, sensorsNew);
+
+	    } };
+		xhttp.open('GET', '/_replaceFile?filename=sensors&?message=' + message, true);   
+		xhttp.send();
+
+		
+	
+		
+	}
+
+	function deleteSensor() {
+		var sensor = document.getElementById("sensors");
+		var s = sensor.selectedIndex;
+		if (s<0){return;}//s=Object.keys(sensorsNew).length+s;}
+		
+		console.log("sensors:", Object.keys(sensorsNew));
+		console.log("deleting:", Object.keys(sensorsNew)[s]);
+		
+		sensor.remove(sensor.selectedIndex);
+		delete sensorsNew[Object.keys(sensorsNew)[s]];
+	}
+	
+	var pinOptions = {"ds3231": 2, "hx711":2, "dht22_temp": 1, "dht22_humid":1, "bmp180_temp":2, "bmp180_press":2,  "hall": 0};
+	function updatePinBoxes(){
+		var t = document.getElementById("sensors");
+		console.log(sensorTypes.value);
+		document.getElementById("sensorTitle").value = sensorTypes.value;
+		console.log("update pin Boxes");
+		var numPins = pinOptions[document.getElementById("sensorTypes").value];
+		console.log(numPins);
+		var elementNames = ["pin1", "pin0"];
+		var i = 0;
+		while (i<elementNames.length){
+			var x = document.getElementById(elementNames[i]);
+			if (i<numPins){
+				x.style.visibility = "visible";
+			} else {
+				x.style.visibility = "hidden";
+			}
+			i+=1;
+		}
+	}
+	function addSensor(){
+
+	  var sensorName = document.getElementById("sensorTitle").value;
+
+
+	  var x = document.getElementById("sensors");
+	  var option = document.createElement("option");
+	  var numPins = pinOptions[document.getElementById("sensorTypes").value];
+	  var sensorType = document.getElementById("sensorTypes").value;
+
+	  var message = "Name: " + sensorName + " -> " + sensorType + ", pins:" ;
+	  		var elementNames = ["pin1","pin0"];
+
+	  var i = 0;
+
+	  var pinNums = 0;
+		while (i<elementNames.length){
+			var t = document.getElementById(elementNames[i]);
+			if (i<numPins){
+				console.log("t val", t.value);
+				message += t.value + ",";
+
+				pinNums += t.value*Math.pow(10,i*2);
+				if (t.value==""){console.log("t value empty"); return;}
+			} else {
+			}
+			i+=1;
+		}
+	var sp = document.getElementById("sensorPrecision").value;
+	message += " precision: " + sp;
+	if (sp==""){console.log("sp value empty"); return;}
+	if (sensorName in sensorsNew || sensorName == ""){alert("invalid sensor name"); return;}
+
+	sensorsNew[sensorName] = {"type":sensorType, "pinNums":pinNums, "precision":sp, "calibration": [1,0]};
+	console.log(sensorsNew);
+	option.text = message;
+	
+	x.add(option);
+	}
+
+
+
+
+  function findLineByLeastSquares(values_x, values_y) {
+  	  console.log("x:", values_x);
+  	  console.log("y: ", values_y)
+      var sum_x = 0;
+      var sum_y = 0;
+      var sum_xy = 0;
+      var sum_xx = 0;
+      var count = 0;
+      var x = 0;
+      var y = 0;
+      var values_length = values_x.length;
+
+      if (values_length != values_y.length) {
+          throw new Error('The parameters values_x and values_y need to have same size!');
+      }
+      if (values_length === 0) {
+          return [ [], [] ];
+      }
+      var v=0;
+      while (v<values_length){
+          x = values_x[v];
+          y = values_y[v];
+          sum_x += x;
+          sum_y += y;
+          sum_xx += x*x;
+          sum_xy += x*y;
+          count++;
+          v+=1;
+      }
+      var m = (count*sum_xy - sum_x*sum_y) / (count*sum_xx - sum_x*sum_x);
+      var b = (sum_y/count) - (m*sum_x)/count;
+
+      var predict = (x) => { return (m * x) + b };
+      var rPrediction = [];
+
+      var SStot = 0; 
+      var SSres = 0;
+      var rSquared = 0;
+      for (var n in values_y) { meanValue += values_y[n]; }
+      var meanValue = (meanValue / values_y.length);
+      
+      for (var n in values_y) { 
+          SStot += Math.pow(values_y[n] - meanValue, 2); 
+          rPrediction.push(predict(n));
+          SSres += Math.pow(rPrediction[n] - values_y[n], 2);
+      }
+      rSquared = 1 - (SSres / SStot);
+      return [m, b, rSquared];
+  }
+
+
+    function clearCalibValues(){
+	    var sensors = document.getElementById("calibVals");
+	    while (sensors.options.length>0){
+	      sensors.remove(0);
+	    }
+	    calibRawVals = [];
+	    calibGivenVals = []
+  	}
+  	var  calibGivenVals = []
+	  var calibRawVals = [];
+
+	function addCalibrationValue() {
+		given = parseFloat(document.getElementById("calibWeight").value);
+		raw = parseFloat(document.getElementById("rawVal").textContent);
+		// raw = Math.random()*3;
+		if (isNaN(given) || given == '') {
+			console.log("given is not a number");
+			console.log("given: ", given);
+			return;
+		} if (isNaN(raw)){
+			console.log("raw is not a number");
+			return;
+		}
+
+	    var x = document.getElementById("calibVals");
+	    var option = document.createElement("option");
+	    option.text = "actual: " + given + "..... Raw: " + raw;
+	    x.add(option);
+	    calibGivenVals.push(given);
+	    calibRawVals.push(raw);
+
+	    if (calibRawVals.length>2){
+	    	console.log("performing regression");
+	      res = findLineByLeastSquares(calibRawVals, calibGivenVals);
+	      document.getElementById("calibM").textContent = res[0];
+	      document.getElementById("calibB").textContent = res[1];
+	      document.getElementById("rSquare").textContent = res[2];
+	      reg = [res[0], res[1]]
+	    }
+	  }
+
+	function beginCalibration() {
+				
+		x = document.getElementById("liveData2").value;
+		document.getElementById("calibFor").textContent = x
+		if (x!==''){
+			document.getElementById("calibration_div").style.display = "none";
+			document.getElementById("calibration_div2").style.display = "block";
+			
+			document.getElementById("calibM").textContent = sensorsOriginal[x]["calibration"][0];
+			document.getElementById("calibB").textContent = sensorsOriginal[x]["calibration"][1];
+			reg = sensorsOriginal[x]["calibration"];
+		}
+	}
+	reg = [1,0]
+	function stopCalibration() {
+		clearCalibValues();
+		document.getElementById("rSquare").textContent = "__";
+		document.getElementById("calibM").textContent = "__";
+		document.getElementById("calibB").textContent = "__";
+
+		var liveList = document.getElementById("liveData2");
+		while (liveList.options.length>0){
+			liveList.remove(0);
+		}
+		reg = [1,0];
+		var i = 0;
+		while (i<Object.keys(sensorsOriginal).length){
+			var message = Object.keys(sensorsOriginal)[i];
+			var option = document.createElement("option");
+			option.text = message;
+			liveList.add(option);
+			i+=1;
+		}
+	
+		document.getElementById("calibration_div2").style.display = "none";
+		document.getElementById("calibration_div").style.display = "block";
+	}
+
+	function saveCalibration(){
+		var name = document.getElementById("calibFor").textContent;
+		if (Object.keys(sensorsNew).includes(name)){
+			sensorsNew[name]["calibration"] = reg;
+			sendSensorInfo();
+		}  else {
+			alert("that sensor somehow doesnt exist")
+		}
+	}
+
+
+
+</script>
+
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {font-family: "Lato", sans-serif;}
+
+.tablink {
+  background-color: Aquamarine;
+  color: black;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 14px 20px;
+  font-size: 17px;
+  width: 14%;
+}
+
+.button {
+cursor: pointer;
+padding: 15px 15px; text-align: center; background-color: #4CAF50; border: none;
+}
+.tablink:hover {
+  background-color: #777;
+}
+
+/* Style the tab content */
+.tabcontent {
+  color: black;
+  display: none;
+  padding: 15%;
+  text-align: center;
+}
+
+#container {
+  margin: 0px auto;
+  width: 500px;
+  height: 375px;
+  border: 10px #333 solid;
+}
+#videoElement {
+  width: 500px;
+  height: 375px;
+  background-color: #666;
+}
+
+#Data {background-color:white;}
+#About {background-color:white;}
+#Camera {background-color:white;}
+#Calibration {background-color:white;}
+#Storage {background-color:white;}
+#Settings {background-color:white;}
+#Power {background-color:white;}
+
+* {
+  box-sizing: border-box;
+}
+
+
+
+</style>
+</head>
+<body>
+
+<button class="tablink" onclick="openTab(this)" id="data">Data</button>
+<button class="tablink" onclick="openTab(this)" id="about">About</button>
+<button class="tablink" onclick="openTab(this)" id="camera">Camera</button>
+<button class="tablink" onclick="openTab(this)" id="calibration">Calibration</button>
+<button class="tablink" onclick="openTab(this)" id="storage">Storage</button>
+<button class="tablink" onclick="openTab(this)" id="settings">Settings</button>
+<button class="tablink" onclick="openTab(this)" id="power">Power</button>
+
+
+
+<div id="about_div" class="tabcontent">
+  <h1>About</h1>
+  <p>This is a scale website.<br><br>MAC Address: <span id="macAddress">___</span><br>Chip ID: <span id="chipID">___</span><br>Software version 2 (1/6/20)<br>FS format 2 (csv)<br>Settings format 2<br></p>
+</div>
+
+<div id="camera_div" class="tabcontent" style="text-align: left; padding:5%">
+  	<h1>Coming soon:</h1>
+ 	<p>Need to use an ESP32cam for outside the hive video or Https for client side bee counting</p>
+ 	<input id="startVideo" type='button'class="button" value='Begin Video' onclick='beginVideo();'/>
+	<div id="container">
+	  <video autoplay="true" id="videoElement">
+	  
+	  </video>
+	</div>
+
+</div>
+<div id="calibration_div" class="tabcontent" style="text-align: left; padding:5%">
+  Calibrate for:<br>
+  <select id="liveData2" size=8 style="width:200px;"></select>
+  <button type="button" onclick="beginCalibration();">begin calibration</button>
+</div>
+<div id="calibration_div2" class="tabcontent" style="text-align: left; padding:5%">
+	<h1>Calibrating for: <span id="calibFor">___</span></h1>
+ <button type="button" onclick="stopCalibration();">back</button>
+  <p> Current Raw: <span id="rawVal">__</span><br>
+    Current Estimated: <span id="estVal">___</span> <br>
+    Equation: y=<span id="calibM">_</span>*x+<span id="calibB">_</span> R-square: <span id="rSquare">____</span><br>
+  <button type="button" onclick="saveCalibration();">Save Calibration</button>
+  </p>
+
+  <p> 
+  Entered values:<br>
+  <select id="calibVals" size=20 style="width:300px"></select><br>
+  <input type='number' id='calibWeight' style='width:80px'>
+  <button type="button" onclick="addCalibrationValue();">Add weight</button>
+  <button type="button" onclick="clearCalibValues();">clear</button>
+
+
+</p>
+</div>
+<div id="storage_div" class="tabcontent">
+  <p>File system: <span id="fs">SPIFFS</span><br><span id="usedBytes">__</span> bytes used out of <span id="totalBytes">_____</span> bytes (<span id="percentUsed">__</span> percent)<br>At a sample rate of <span id="sampleRate">__</span>, it can record for <span id="numRecordDays"> ___</span> more days</p>
+  <input type='button' value='Wipe all files' onclick='wipeData(true);'/>
+  <input type='button' value='Wipe just data' onclick='wipeData(false);'/>
+</div>
+<div id="settings_div" class="tabcontent">
+		<input type='button' class="button" value='save' onclick='sendSettings();'/>
+
+	<h2>Data</h2>
+	<input type="checkbox" id="scales" name="scales" checked> SI units
+    <p> Data Collection Period: <input type='number' id='sampleRate2' style='width:80px'> seconds<br><br><br>
+    <input type="button" value="use default sensors" onclick="useDefaultSensors();"><br>
+  	<select id="sensors" size=8 style="width:500px;"></select>
+  	<br>Sensor name: <input type="text" id="sensorTitle">
+  	<input type="button" value="delete sensor" onclick="deleteSensor();">
+  	<form onchange="updatePinBoxes();">
+	  <select name="sensor" id="sensorTypes">
+	    <option value="ds3231">ds3231 (rtc)</option>
+	    <option value="hx711">HX711 (scale)</option>
+	    <option value="dht22_temp">DHT22 (temperature)</option>
+	    <option value="dht22_humid">DHT22 (humidity)</option>
+	   	<option value="bmp180_temp">BMP180 (temperature)</option>
+	    <option value="bmp180_press">BMP180 (pressure)</option>
+	    <option value="hall">hall (magnetism)</option>
+	  </select>
+
+	</form>
+	Pin Numbers: <input type="number" style="width:60px;" id="pin1"> <input type="number" style="width:60px;" id="pin0">
+	Precision: <input type="number" style="width:100px;" id="sensorPrecision" value="0"> decimal places<br>
+		  <input type="button" value="add sensor" onclick="addSensor();"><br><br>
+		  <input type="button" value="Save sensor info" onclick="sendSensorInfo();">
+
+
+	<h2>Network</h2>
+	<p>
+	<input type="checkbox" id="useAP" name="ap"> create an access point<br><br>
+	Network name: <input type="text" id="networkName"><br><br>
+    Password: <input type="text" id="networkPwd"> <br><br>*Credentials are saved on ESP32, which offers no encryption</p>
+
+    <h2><br>Files</h2>
+    <h3>Upload file:</h3>
+    <input type='file' name='update'>
+    <input type='submit' value='Upload'>
+    <h3>Browse files:</h3>
+    <select id="fileBrowser" size=10 style="width:100px"></select>
+   	<button type="button" onclick="deleteFile()">Delete File</button>
+   	<button type="button" onclick="viewFile()">View Raw File</button><br>
+   	<span id="rawinfo">____</span>
+</div>
+
+<div id="power_div" class="tabcontent">
+	<h1>Power down:</h1>
+  	<p>Power off the WIFI of this device to save power.<br>The ESP32 will continue to record data.<br>Restart the power source to turn on the WIFI sooner.<br><br>Power off for
+  	<input type='number' id='powerPeriod' style='width:80px'> days<br><br></p>
+	<input id="powerButton" class="button" value='Power Off' onclick='shutdown();'/>
+</div>
+
+
+<div id="data_div" class="tabcontent">
+<canvas id="myCanvas" style="position: absolute; left: 1%; top: 8%; " onclick="clickEvent(event);" >
+Your browser does not support the HTML5 canvas tag.</canvas>
+<input id="downloadButton" type="button" style="position:absolute; left:10px" value='download csv' onclick='sendCsv();'/>
+<p style="position:absolute; font-size:30px; left:60%;">
+Current readings:<br>
+<select id="liveData" size=8 style="width:200px;"></select>
+<body onload='setup();'>
+
+
+</body>
+</html> 
