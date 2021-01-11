@@ -61,6 +61,11 @@ The ESP32 is similar to an Arduino Uno, but has more built-in features at a lowe
 
 The ESP32 series devkit has 4mb of flash. Approximately 1/3 is for the sketch, 1/3 is for the backup sketch, and 1/3 is for SPIFFS. SPIFFS is a file system with wear-leveling and support for several file types, including .txt files. Once set up, the ESP32 is able to log the data.
 
+### HX711
+Datasheets:
+
+20 kg bending https://www.robotshop.com/media/files/pdf/datasheet-3135.pdf
+50 kg https://www.makerfabs.com/desfile/files/Load%20Cell-50kg.pdf
 
 ## Further Information
 
