@@ -67,6 +67,27 @@ Datasheets:
 20 kg bending https://www.robotshop.com/media/files/pdf/datasheet-3135.pdf
 50 kg https://www.makerfabs.com/desfile/files/Load%20Cell-50kg.pdf
 
+## Accuracy:
+### Weight
+The accuracy of the HX711 varies heavily on multiple environmental and setup factors. The accuracy can vary from +/- 0.5 kg over months, all the way to +/- 2 kg over a day. There are several things to consider when determining accuracy:
+##### Temperature/humidity
+    Changes in temperature and humidity change the accuracy fo the scale. The most accurate continuous readings were performed indoors.
+##### Wiring
+    Exposed wires are particularly heavily affected by external factors, particularly humidity. It is suggested that the thin wire should be soldered to a heavier gauge wire before going to the HX711.
+    
+### temperature/humidity
+Temperature and humidity heavily depend on the sensor used. The sensors in order from least accurate to most accurate:
+DHT11
+BMP180
+DHT22
+BME280
+The BME280 is very accurate, but it produces heat so the actual temperature is usually 2 degrees celcius lower than its reading.
+
+### Time
+The DS3231 has very good accuracy. It only varies by a second or two each month. Everytime a device connects to the ESP32's website, it will automatically adjust the time. 
+     
+As more testing is performed, better information on the accuracy of the devices can be provided and corrections can be made.
+
 ## Further Information
 
 ### Power:
