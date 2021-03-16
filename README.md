@@ -71,9 +71,9 @@ Datasheets:
 ### Weight
 The accuracy of the HX711 varies heavily on multiple environmental and setup factors. The accuracy can vary from +/- 0.5 kg over months, all the way to +/- 2 kg over a day. There are several things to consider when determining accuracy:
 ##### Temperature/humidity
-    Changes in temperature and humidity change the accuracy fo the scale. The most accurate continuous readings were performed indoors.
+Changes in temperature and humidity change the accuracy fo the scale. The most accurate continuous readings were performed indoors.
 ##### Wiring
-    Exposed wires are particularly heavily affected by external factors, particularly humidity. It is suggested that the thin wire should be soldered to a heavier gauge wire before going to the HX711.
+Exposed wires are particularly heavily affected by external factors, particularly humidity. It is suggested that the thin wire should be soldered to a heavier gauge wire before going to the HX711.
     
 ### temperature/humidity
 Temperature and humidity heavily depend on the sensor used. The sensors in order from least accurate to most accurate:
