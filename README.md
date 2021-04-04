@@ -1,7 +1,7 @@
 # BeeData
 
 ## About:
-BeeData is an open-source project to log environmental data over multiple months. This project is specifically directed toward weighing bee hives, but it can be used to log any other type of data. 
+BeeData is an open-source project to log environmental data over multiple months. This project is specifically directed toward weighing bee hives, but it can be used to log any other type of data. Compared to other data loggers fro the ESP32/ESP8266, it can store data locally or online, and it hosts a website with multiple useful features.
 
 ## Setup:
 ### 1. Set up hardware
@@ -23,10 +23,7 @@ DHT22 (temperature + humidity sensor)
 2: D27
 3: GND
 
-Alternatives to the DHT22 are:
-DHT11
-BMP180
-BME280
+Currently, it can log with any combination of the DS3231, HX711, DHT11/22, BMP180, BME280 sensors
 
 ### 2. Installing Arduino IDE
 
