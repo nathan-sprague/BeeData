@@ -1,7 +1,7 @@
 # BeeData
 
 ## About:
-BeeData is an open-source project to log environmental data over multiple months. This project is specifically directed toward weighing bee hives, but it can be used to log any other type of data. Compared to other data loggers fro the ESP32/ESP8266, it can store data locally or online, and it hosts a website with multiple useful features.
+BeeData is an open-source project to log environmental data over multiple months. This project is specifically directed toward weighing bee hives, but it can be used to log any other type of data. Compared to other data loggers for the ESP32/ESP8266, it can store data locally or online, and it hosts a website with multiple useful features.
 
 ## Setup:
 ### 1. Set up hardware
