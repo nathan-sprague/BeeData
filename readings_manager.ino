@@ -7,7 +7,7 @@ long getTime() {
     if (useAP == false) {
       Serial.println("\n\n\n\nSetting accurate time");
 
-      String link = "http://67.160.27.152/time";
+      String link = "http:/yolohashtag.com/time";
       String timeStr = clientRequest(link);
       if (timeStr.toInt() > 2) {
         Serial.println("got time from server");
@@ -198,7 +198,7 @@ int getReadings(long datas[], bool saveData) {
   }
   if (saveData) {
     String chipId = String((uint32_t)(ESP.getEfuseMac() >> 24), HEX);
-    String link = "http://67.160.27.152/uploadData?username=" + chipId + "&data=" + readingMsg;
+    String link = "http://yolohashtag.com/uploadData?username=" + chipId + "&data=" + readingMsg;
     Serial.println(link);
     clientRequest(link);
   }
