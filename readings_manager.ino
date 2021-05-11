@@ -7,7 +7,7 @@ long getTime() {
     if (useAP == false) {
       Serial.println("\n\n\n\nSetting accurate time");
 
-      String link = "http:/yolohashtag.com/time";
+      String link = "http://yolohashtag.com/time";
       String timeStr = clientRequest(link);
       if (timeStr.toInt() > 2) {
         Serial.println("got time from server");
